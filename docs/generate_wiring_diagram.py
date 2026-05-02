@@ -21,7 +21,7 @@ from typing import Tuple, List
 # CONSTANTS
 # ===================================================================
 
-WIDTH, HEIGHT = 1400, 1000
+WIDTH, HEIGHT = 1600, 1200
 BG_COLOR = (255, 255, 255)
 TEXT_COLOR = (0, 0, 0)
 LINE_COLOR = (40, 40, 40)
@@ -31,11 +31,11 @@ CALLOUT_COLOR = (255, 240, 200)
 CALLOUT_BORDER = (200, 150, 50)
 
 # Font sizes
-TITLE_SIZE = 18
-COMPONENT_SIZE = 12
-LABEL_SIZE = 10
-SMALL_SIZE = 8
-CALLOUT_SIZE = 9
+TITLE_SIZE = 22
+COMPONENT_SIZE = 14
+LABEL_SIZE = 12
+SMALL_SIZE = 10
+CALLOUT_SIZE = 11
 
 # Component dimensions
 COMP_WIDTH = 80
@@ -52,8 +52,8 @@ BATTERY_X = 50
 MOTOR_X = 1250
 CENTER_X = 700
 
-# Callout zone
-CALLOUT_TOP = 500
+# Callout zone (larger area for readable specs)
+CALLOUT_TOP = 550
 
 # ===================================================================
 # COMPONENT CLASS
@@ -124,8 +124,8 @@ class Callout:
         self.text = text
         self.leader_x = leader_x
         self.leader_y = leader_y
-        self.width = 200
-        self.height = 80
+        self.width = 240
+        self.height = 110
 
     def draw(self, surface: pygame.Surface, font: pygame.font.Font):
         """Draw balloon and leader line."""
@@ -137,14 +137,15 @@ class Callout:
         # Leader line (pointer)
         if self.leader_x > 0:
             pygame.draw.line(surface, CALLOUT_BORDER, (self.leader_x, self.leader_y),
-                           (self.x + 20, self.y + 20), width=1)
+                           (self.x + 30, self.y + 30), width=2)
 
-        # Text
-        y_offset = self.y + 8
+        # Text (centered, better spacing)
+        y_offset = self.y + 10
         for line in self.text:
             surf = font.render(line, True, TEXT_COLOR)
-            surface.blit(surf, (self.x + 8, y_offset))
-            y_offset += 18
+            rect = surf.get_rect(center=(self.x + self.width // 2, y_offset))
+            surface.blit(surf, rect)
+            y_offset += 24
 
 # ===================================================================
 # MAIN DIAGRAM
@@ -230,17 +231,19 @@ def create_wiring_diagram():
     # ===================================================================
 
     callouts = [
-        Callout(50, CALLOUT_TOP, ["Battery Input:", "2 AWG 80A max", "48V DC", "Insulated"], 160, 130),
-        Callout(280, CALLOUT_TOP, ["Fuse to Cont:", "2 AWG 80A max", "48V DC", "PVC conduit"], 390, 230),
-        Callout(510, CALLOUT_TOP, ["Cont to Bus:", "4 AWG 80A max", "48V DC", "Copper"], 600, 300),
-        Callout(740, CALLOUT_TOP, ["Bus to Buck:", "4 AWG 50A max", "48V DC", "Conduit"], 860, 300),
-        Callout(970, CALLOUT_TOP, ["Buck to Motor:", "6 AWG 50A max", "0-48V PWM", "Silicone"], 1150, 130),
+        # Wire specs (top row)
+        Callout(40, CALLOUT_TOP, ["Battery Input", "2 AWG 80A max", "48V DC", "Insulated"], 160, 150),
+        Callout(320, CALLOUT_TOP, ["Fuse to Cont", "2 AWG 80A max", "48V DC", "PVC conduit"], 420, 250),
+        Callout(600, CALLOUT_TOP, ["Cont to Bus", "4 AWG 80A max", "48V DC", "Copper"], 700, 330),
+        Callout(880, CALLOUT_TOP, ["Bus to Buck", "4 AWG 50A max", "48V DC", "Conduit"], 980, 330),
+        Callout(1160, CALLOUT_TOP, ["Buck to Motor", "6 AWG 50A max", "0-48V PWM", "Silicone"], 1320, 150),
 
-        Callout(50, CALLOUT_TOP + 150, ["Battery Pack", "48V 20Ah", "LiFePO4", "SoC Monitor"], 0, 0),
-        Callout(280, CALLOUT_TOP + 150, ["80A Fuse", "ANL Holder", "Both Channels", "Circuit Protect"], 0, 0),
-        Callout(510, CALLOUT_TOP + 150, ["Contactor", "24V 40A Relay", "SoC Control", "Switching"], 0, 0),
-        Callout(740, CALLOUT_TOP + 150, ["PWM Buck", "48V 30A Conv", "0-48V Adjust", "CC Mode"], 0, 0),
-        Callout(970, CALLOUT_TOP + 150, ["Hub Motor", "750W nom", "INA226 sense", "Current feedback"], 0, 0),
+        # Component specs (bottom row)
+        Callout(40, CALLOUT_TOP + 170, ["Battery Pack", "48V 20Ah LiFePO4", "SoC Monitor", "Load Balance"], 0, 0),
+        Callout(320, CALLOUT_TOP + 170, ["80A Fuse", "ANL Holder", "Both Channels", "Circuit Protect"], 0, 0),
+        Callout(600, CALLOUT_TOP + 170, ["Contactor", "24V 40A Relay", "SoC Control", "Switching Logic"], 0, 0),
+        Callout(880, CALLOUT_TOP + 170, ["PWM Buck Conv", "48V 30A", "0-48V Adjust", "CC Mode"], 0, 0),
+        Callout(1160, CALLOUT_TOP + 170, ["Hub Motor", "750W nominal", "INA226 sense", "Current feedback"], 0, 0),
     ]
 
     # ===================================================================
@@ -282,7 +285,7 @@ def create_wiring_diagram():
 
     # Save PNG
     pygame.image.save(screen, "wiring_diagram_detailed.png")
-    print("[OK] Saved: wiring_diagram_detailed.png (1400x1000)")
+    print("[OK] Saved: wiring_diagram_detailed.png (1600x1200)")
 
     pygame.quit()
 
