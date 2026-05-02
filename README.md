@@ -128,9 +128,9 @@ See BOM in `ebike_controller_spec.md`. Lead times: 2–4 weeks from AliExpress.
 - Check PWM: measure voltage on scope (should be 0V at 0% duty, 48V at 100%)
 
 ### 6. Configure WiFi & Web
-- Pico W starts in STA mode, connects to network named "fahu"
+- Pico W starts in STA mode, connects to your configured WiFi network
 - Once connected, visit `http://<pico-ip>/` in browser
-- Log in with user: `davey`, password: `dfg9538` (HTTP Basic Auth)
+- Log in with your configured HTTP Basic Auth credentials
 - Configure PIN code, power curves, current limits via web form
 
 ### 7. Calibrate on Test Stand
@@ -152,10 +152,10 @@ Config is stored as JSON on Pico W flash (`config.json`). Edit via:
 2. **Serial REPL**: Connect USB, edit config.json directly, reboot
 3. **Local menu**: 3-button interface (PIN required)
 
-**Default config:**
+**Config template** (set your own credentials):
 ```json
 {
-    "wifi_ssid": "fahu",
+    "wifi_ssid": "your_wifi_network",
     "wifi_password": "your_wifi_password",
     "web_user": "your_username",
     "web_pass": "your_password",
