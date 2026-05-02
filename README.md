@@ -50,7 +50,7 @@ A complete power distribution and motor control system for dual-hub-motor ebikes
 ### Total BOM Cost
 **€297** (excluding batteries, motors, harnesses)
 
-See `ebike_controller_spec.md` for full pinout, sourced components, and assembly instructions.
+**→ See [Full Hardware Spec](ebike_controller_spec.md) for complete pinout, sourced components with verified links, and assembly instructions**
 
 ## Directory Structure
 
@@ -77,6 +77,25 @@ ebike/
     ├── TROUBLESHOOTING.md             # Common issues + fixes
     └── SAFETY.md                      # Electrical safety warnings
 ```
+
+## Documentation Map
+
+**Getting Started**
+- [**Full Hardware Spec & BOM**](ebike_controller_spec.md) — Complete pinout (GPIO pin assignments), verified component sources with pricing (€297 total), assembly instructions, testing checklist
+- [**Quick Start Guide**](#quick-start) — 8-step setup from ordering to field tuning
+
+**Building & Integration**
+- [`docs/WIRING.md`](docs/WIRING.md) — Power distribution board layout, relay driver stage, busbar routing, crimp connections
+- [`docs/SAFETY.md`](docs/SAFETY.md) — High-voltage warnings, fuse ratings, flyback diode placement, electrical safety checklist
+
+**Operation & Tuning**
+- [`docs/TUNING.md`](docs/TUNING.md) — PWM curve calibration, current feedback loop tuning, range estimation refinement
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — Common issues: I²C bus errors, relay chatter, range discrepancies, WiFi connection problems
+
+**Firmware & Configuration**
+- [`main.py`](main.py) — MicroPython entry point (GPIO init, WiFi, control loop, web API)
+- [**Configuration**](#configuration) — JSON schema, editing via web UI or serial REPL
+- [**API Endpoints**](#api-endpoints) — HTTP/JSON endpoints for remote control and status
 
 ## Quick Start
 
@@ -184,11 +203,24 @@ All endpoints require HTTP Basic Auth.
 - Wear safety equipment (helmet, gloves) when testing
 - Consult local ebike regulations (motor wattage, speed limits, licensing)
 
+**→ See [Safety Checklist](docs/SAFETY.md) for detailed electrical safety guidelines**
+
 ## Support & Contributing
 
-See `docs/TROUBLESHOOTING.md` for common issues.
+**→ See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for common issues and solutions**
 
 For questions, open an issue or contact the author.
+
+## Quick Navigation
+
+| Need Help With | Go To |
+|---|---|
+| Hardware assembly & wiring | [Hardware Spec](ebike_controller_spec.md) → [Wiring Guide](docs/WIRING.md) |
+| PWM tuning & calibration | [Tuning Guide](docs/TUNING.md) |
+| WiFi config or API | [Configuration](#configuration) → [API Endpoints](#api-endpoints) |
+| Debugging I²C/relay/range issues | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Electrical safety | [Safety Checklist](docs/SAFETY.md) |
+| Firmware source | [main.py](main.py) |
 
 ## License
 
