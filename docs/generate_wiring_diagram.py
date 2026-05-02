@@ -1,294 +1,180 @@
 #!/usr/bin/env python3
 """
-Generate wiring diagram for eBike controller with detailed callout specs.
-Uses pygame to draw:
-- Batteries (left) -> Distribution (center) -> Motors (right)
-- Horizontal flow with top/bottom rows for inputs/outputs
-- Bottom half: Detailed callout balloons with wire/component specs
-
-Usage:
-    python generate_wiring_diagram.py
-
-Output:
-    wiring_diagram_detailed.png (1400x1000)
+Generate clean wiring diagram for eBike controller.
+Simple layout: batteries left -> distribution center -> motors right
+Detailed spec boxes separated below for clarity.
 """
 
 import pygame
-import sys
-from typing import Tuple, List
+from typing import List
 
-# ===================================================================
-# CONSTANTS
-# ===================================================================
-
-WIDTH, HEIGHT = 1600, 1200
+WIDTH, HEIGHT = 1400, 900
 BG_COLOR = (255, 255, 255)
 TEXT_COLOR = (0, 0, 0)
-LINE_COLOR = (40, 40, 40)
-COMPONENT_COLOR = (200, 220, 255)
-CONDUCTOR_COLOR = (200, 100, 50)
-CALLOUT_COLOR = (255, 240, 200)
-CALLOUT_BORDER = (200, 150, 50)
+LINE_COLOR = (30, 30, 30)
+COMPONENT_BG = (240, 240, 240)
+SPEC_BOX_BG = (245, 245, 245)
+SPEC_BOX_BORDER = (150, 150, 150)
 
-# Font sizes
-TITLE_SIZE = 22
-COMPONENT_SIZE = 14
-LABEL_SIZE = 12
-SMALL_SIZE = 10
-CALLOUT_SIZE = 11
-
-# Component dimensions
-COMP_WIDTH = 80
-COMP_HEIGHT = 50
-BATTERY_WIDTH = 70
-BATTERY_HEIGHT = 50
-
-# Diagram zones
-TOP_ROW_Y = 80
-MIDDLE_ROW_Y = 250
-BOTTOM_ROW_Y = 420
-
-BATTERY_X = 50
-MOTOR_X = 1250
-CENTER_X = 700
-
-# Callout zone (larger area for readable specs)
-CALLOUT_TOP = 550
-
-# ===================================================================
-# COMPONENT CLASS
-# ===================================================================
-
-class Component:
-    """Single-line schematic component box."""
-    def __init__(self, name: str, model: str, x: int, y: int, width: int = COMP_WIDTH, height: int = COMP_HEIGHT):
-        self.name = name
-        self.model = model
+class Box:
+    """Simple component box."""
+    def __init__(self, label: str, x: int, y: int, w: int = 60, h: int = 50):
+        self.label = label
         self.x = x
         self.y = y
-        self.width = width
-        self.height = height
+        self.w = w
+        self.h = h
 
-    def draw(self, surface: pygame.Surface, font_comp: pygame.font.Font, font_label: pygame.font.Font):
-        """Draw component box and labels."""
-        rect = pygame.Rect(self.x, self.y, self.width, self.height)
-        pygame.draw.rect(surface, COMPONENT_COLOR, rect, border_radius=4)
-        pygame.draw.rect(surface, LINE_COLOR, rect, width=2, border_radius=4)
+    def draw(self, surface, font):
+        rect = pygame.Rect(self.x, self.y, self.w, self.h)
+        pygame.draw.rect(surface, COMPONENT_BG, rect)
+        pygame.draw.rect(surface, LINE_COLOR, rect, width=2)
+        text = font.render(self.label, True, TEXT_COLOR)
+        text_rect = text.get_rect(center=(self.x + self.w//2, self.y + self.h//2))
+        surface.blit(text, text_rect)
 
-        # Name (bold, smaller)
-        name_surf = font_comp.render(self.name, True, TEXT_COLOR)
-        name_rect = name_surf.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2 - 8))
-        surface.blit(name_surf, name_rect)
+    def right(self):
+        return self.x + self.w
 
-        # Model (smaller, gray)
-        model_surf = font_label.render(self.model, True, (80, 80, 80))
-        model_rect = model_surf.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2 + 12))
-        surface.blit(model_surf, model_rect)
+    def left(self):
+        return self.x
 
-# ===================================================================
-# CONDUCTOR CLASS
-# ===================================================================
+    def top(self):
+        return self.y
 
-class Conductor:
-    """Conductor line between components with optional circle marker."""
-    def __init__(self, x1: int, y1: int, x2: int, y2: int, awg: str, amperage: str, voltage: str, conduit: str, label_id: str = ""):
-        self.x1 = x1
-        self.y1 = y1
-        self.x2 = x2
-        self.y2 = y2
-        self.awg = awg
-        self.amperage = amperage
-        self.voltage = voltage
-        self.conduit = conduit
-        self.label_id = label_id
+    def bottom(self):
+        return self.y + self.h
 
-    def draw(self, surface: pygame.Surface, font_label: pygame.font.Font = None, font_small: pygame.font.Font = None):
-        """Draw line only (specs in callout)."""
-        pygame.draw.line(surface, CONDUCTOR_COLOR, (self.x1, self.y1), (self.x2, self.y2), width=2)
+    def center(self):
+        return (self.x + self.w//2, self.y + self.h//2)
 
-    def draw_circle(self, surface: pygame.Surface, radius: int = 8):
-        """Draw circle around midpoint."""
-        mid_x = (self.x1 + self.x2) // 2
-        mid_y = (self.y1 + self.y2) // 2
-        pygame.draw.circle(surface, CONDUCTOR_COLOR, (mid_x, mid_y), radius, width=2)
-
-# ===================================================================
-# CALLOUT CLASS
-# ===================================================================
-
-class Callout:
-    """Spec callout balloon with optional leader line."""
-    def __init__(self, x: int, y: int, text: List[str], leader_x: int = 0, leader_y: int = 0):
+class SpecBox:
+    """Detailed specification box."""
+    def __init__(self, title: str, specs: List[str], x: int, y: int):
+        self.title = title
+        self.specs = specs
         self.x = x
         self.y = y
-        self.text = text
-        self.leader_x = leader_x
-        self.leader_y = leader_y
-        self.width = 240
-        self.height = 110
+        self.w = 160
+        self.h = 100
 
-    def draw(self, surface: pygame.Surface, font: pygame.font.Font):
-        """Draw balloon and leader line."""
-        # Balloon box (rounded)
-        rect = pygame.Rect(self.x, self.y, self.width, self.height)
-        pygame.draw.ellipse(surface, CALLOUT_COLOR, rect)
-        pygame.draw.ellipse(surface, CALLOUT_BORDER, rect, width=2)
+    def draw(self, surface, title_font, spec_font):
+        rect = pygame.Rect(self.x, self.y, self.w, self.h)
+        pygame.draw.rect(surface, SPEC_BOX_BG, rect)
+        pygame.draw.rect(surface, SPEC_BOX_BORDER, rect, width=1)
 
-        # Leader line (pointer)
-        if self.leader_x > 0:
-            pygame.draw.line(surface, CALLOUT_BORDER, (self.leader_x, self.leader_y),
-                           (self.x + 30, self.y + 30), width=2)
+        # Title
+        title_text = title_font.render(self.title, True, TEXT_COLOR)
+        surface.blit(title_text, (self.x + 8, self.y + 5))
 
-        # Text (centered, better spacing)
-        y_offset = self.y + 10
-        for line in self.text:
-            surf = font.render(line, True, TEXT_COLOR)
-            rect = surf.get_rect(center=(self.x + self.width // 2, y_offset))
-            surface.blit(surf, rect)
-            y_offset += 24
+        # Specs
+        y_offset = self.y + 28
+        for spec in self.specs:
+            spec_text = spec_font.render(spec, True, TEXT_COLOR)
+            surface.blit(spec_text, (self.x + 8, y_offset))
+            y_offset += 16
 
-# ===================================================================
-# MAIN DIAGRAM
-# ===================================================================
+def draw_line(surface, x1, y1, x2, y2, label: str = "", font = None):
+    """Draw line between points with optional label."""
+    pygame.draw.line(surface, LINE_COLOR, (x1, y1), (x2, y2), width=2)
+    if label and font:
+        mid_x, mid_y = (x1 + x2) // 2, (y1 + y2) // 2
+        text = font.render(label, True, (100, 100, 100))
+        surface.blit(text, (mid_x - 15, mid_y - 10))
 
-def create_wiring_diagram():
-    """Build and render wiring diagram with batteries left, motors right, callouts below."""
+def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("eBike Dual-Motor Controller - Detailed Wiring Diagram")
+    pygame.display.set_caption("eBike Power Distribution - Clean Wiring Diagram")
 
-    # Fonts
-    font_title = pygame.font.SysFont("arial", TITLE_SIZE, bold=True)
-    font_comp = pygame.font.SysFont("arial", COMPONENT_SIZE, bold=True)
-    font_label = pygame.font.SysFont("arial", LABEL_SIZE)
-    font_small = pygame.font.SysFont("arial", SMALL_SIZE)
-    font_callout = pygame.font.SysFont("arial", CALLOUT_SIZE)
-
-    # ===================================================================
-    # COMPONENT DEFINITIONS - Left to Right Layout
-    # ===================================================================
-
-    # BATTERIES (left side, stacked vertically)
-    batt_a = Component("Battery A", "48V 20Ah", BATTERY_X, TOP_ROW_Y, BATTERY_WIDTH, BATTERY_HEIGHT)
-    batt_b = Component("Battery B", "48V 20Ah", BATTERY_X, BOTTOM_ROW_Y, BATTERY_WIDTH, BATTERY_HEIGHT)
-
-    # DISTRIBUTION (center path)
-    fuse_a = Component("Fuse A", "80A ANL", CENTER_X - 200, TOP_ROW_Y)
-    fuse_b = Component("Fuse B", "80A ANL", CENTER_X - 200, BOTTOM_ROW_Y)
-    cont_a = Component("Cont A", "24V 40A", CENTER_X - 100, TOP_ROW_Y)
-    cont_b = Component("Cont B", "24V 40A", CENTER_X - 100, BOTTOM_ROW_Y)
-    bus = Component("Power Bus", "48V Busbar", CENTER_X + 50, MIDDLE_ROW_Y - 20, COMP_WIDTH + 20, COMP_HEIGHT)
-    buck_f = Component("Buck F", "0-48V PWM", CENTER_X + 150, TOP_ROW_Y)
-    buck_r = Component("Buck R", "0-48V PWM", CENTER_X + 150, BOTTOM_ROW_Y)
-
-    # MOTORS (right side, outputs)
-    motor_f = Component("Motor F", "750W Hub", MOTOR_X, TOP_ROW_Y, BATTERY_WIDTH, BATTERY_HEIGHT)
-    motor_r = Component("Motor R", "750W Hub", MOTOR_X, BOTTOM_ROW_Y, BATTERY_WIDTH, BATTERY_HEIGHT)
-
-    # CONTROL (reference)
-    pico = Component("Pico W", "MCU+WiFi", CENTER_X - 50, 20, 100, 40)
-    lcd = Component("LCD", "20x4 I2C", CENTER_X + 70, 20, 80, 40)
-
-    # ===================================================================
-    # CONDUCTOR CONNECTIONS (simple lines, specs in callouts)
-    # ===================================================================
-
-    conductors = []
-
-    # Battery A -> Fuse A -> Contactor A -> Bus
-    c1 = Conductor(batt_a.x + BATTERY_WIDTH // 2, batt_a.y + BATTERY_HEIGHT,
-                   fuse_a.x + COMP_WIDTH // 2, fuse_a.y, "2 AWG", "80A", "48V DC", "Insulation", "c1")
-    c2 = Conductor(fuse_a.x + COMP_WIDTH // 2, fuse_a.y + COMP_HEIGHT,
-                   cont_a.x + COMP_WIDTH // 2, cont_a.y, "2 AWG", "80A", "48V DC", "Conduit", "c2")
-    c3 = Conductor(cont_a.x + COMP_WIDTH // 2, cont_a.y + COMP_HEIGHT,
-                   bus.x + COMP_WIDTH // 2 - 30, bus.y + COMP_HEIGHT // 2, "4 AWG", "80A", "48V DC", "Busbar", "c3")
-    conductors.extend([c1, c2, c3])
-
-    # Battery B -> Fuse B -> Contactor B -> Bus
-    c4 = Conductor(batt_b.x + BATTERY_WIDTH // 2, batt_b.y,
-                   fuse_b.x + COMP_WIDTH // 2, fuse_b.y, "2 AWG", "80A", "48V DC", "Insulation", "c4")
-    c5 = Conductor(fuse_b.x + COMP_WIDTH // 2, fuse_b.y - COMP_HEIGHT,
-                   cont_b.x + COMP_WIDTH // 2, cont_b.y, "2 AWG", "80A", "48V DC", "Conduit", "c5")
-    c6 = Conductor(cont_b.x + COMP_WIDTH // 2, cont_b.y - COMP_HEIGHT,
-                   bus.x + COMP_WIDTH // 2 + 30, bus.y + COMP_HEIGHT // 2, "4 AWG", "80A", "48V DC", "Busbar", "c6")
-    conductors.extend([c4, c5, c6])
-
-    # Bus -> Buck Converters -> Motors
-    c7 = Conductor(bus.x + COMP_WIDTH // 2 - 30, bus.y,
-                   buck_f.x + COMP_WIDTH // 2, buck_f.y + COMP_HEIGHT, "4 AWG", "50A", "48V DC", "Conduit", "c7")
-    c8 = Conductor(buck_f.x + COMP_WIDTH // 2, buck_f.y,
-                   motor_f.x, motor_f.y + BATTERY_HEIGHT // 2, "6 AWG", "50A", "PWM", "Silicone", "c8")
-    conductors.extend([c7, c8])
-
-    c9 = Conductor(bus.x + COMP_WIDTH // 2 + 30, bus.y,
-                   buck_r.x + COMP_WIDTH // 2, buck_r.y - COMP_HEIGHT, "4 AWG", "50A", "48V DC", "Conduit", "c9")
-    c10 = Conductor(buck_r.x + COMP_WIDTH // 2, buck_r.y,
-                    motor_r.x, motor_r.y + BATTERY_HEIGHT // 2, "6 AWG", "50A", "PWM", "Silicone", "c10")
-    conductors.extend([c9, c10])
-
-    # ===================================================================
-    # CALLOUT SPECS (bottom half with leaders and balloons)
-    # ===================================================================
-
-    callouts = [
-        # Wire specs (top row)
-        Callout(40, CALLOUT_TOP, ["Battery Input", "2 AWG 80A max", "48V DC", "Insulated"], 160, 150),
-        Callout(320, CALLOUT_TOP, ["Fuse to Cont", "2 AWG 80A max", "48V DC", "PVC conduit"], 420, 250),
-        Callout(600, CALLOUT_TOP, ["Cont to Bus", "4 AWG 80A max", "48V DC", "Copper"], 700, 330),
-        Callout(880, CALLOUT_TOP, ["Bus to Buck", "4 AWG 50A max", "48V DC", "Conduit"], 980, 330),
-        Callout(1160, CALLOUT_TOP, ["Buck to Motor", "6 AWG 50A max", "0-48V PWM", "Silicone"], 1320, 150),
-
-        # Component specs (bottom row)
-        Callout(40, CALLOUT_TOP + 170, ["Battery Pack", "48V 20Ah LiFePO4", "SoC Monitor", "Load Balance"], 0, 0),
-        Callout(320, CALLOUT_TOP + 170, ["80A Fuse", "ANL Holder", "Both Channels", "Circuit Protect"], 0, 0),
-        Callout(600, CALLOUT_TOP + 170, ["Contactor", "24V 40A Relay", "SoC Control", "Switching Logic"], 0, 0),
-        Callout(880, CALLOUT_TOP + 170, ["PWM Buck Conv", "48V 30A", "0-48V Adjust", "CC Mode"], 0, 0),
-        Callout(1160, CALLOUT_TOP + 170, ["Hub Motor", "750W nominal", "INA226 sense", "Current feedback"], 0, 0),
-    ]
-
-    # ===================================================================
-    # RENDER AND SAVE
-    # ===================================================================
+    font_title = pygame.font.SysFont("arial", 24, bold=True)
+    font_component = pygame.font.SysFont("arial", 14, bold=True)
+    font_label = pygame.font.SysFont("arial", 11)
+    font_spec_title = pygame.font.SysFont("arial", 10, bold=True)
+    font_spec = pygame.font.SysFont("arial", 9)
 
     screen.fill(BG_COLOR)
 
     # Title
-    title_surf = font_title.render("eBike Dual-Motor Dual-Battery Power Distribution", True, TEXT_COLOR)
-    title_rect = title_surf.get_rect(center=(WIDTH // 2, 10))
-    screen.blit(title_surf, title_rect)
+    title = font_title.render("eBike Dual-Motor Dual-Battery Power Distribution", True, TEXT_COLOR)
+    screen.blit(title, (WIDTH//2 - title.get_width()//2, 15))
 
-    # Draw conductors (lines only, specs in callouts)
-    for conductor in conductors:
-        conductor.draw(screen)
+    # ===== TOP FLOW (Battery A Path) =====
+    y_top = 80
 
-    # Draw circles around wire segments (every other conductor)
-    for i, conductor in enumerate(conductors):
-        if i % 2 == 0:
-            conductor.draw_circle(screen, 8)
+    batt_a = Box("B-A", 50, y_top)
+    fuse_a = Box("F-A", 150, y_top)
+    cont_a = Box("C-A", 250, y_top)
+    bus_top = Box("BUS", 380, y_top - 15)
+    buck_f = Box("BK-F", 520, y_top)
+    motor_f = Box("M-F", 650, y_top)
 
-    # Draw all components
-    for comp in [batt_a, batt_b, fuse_a, fuse_b, cont_a, cont_b, bus, buck_f, buck_r, motor_f, motor_r, pico, lcd]:
-        comp.draw(screen, font_comp, font_label)
+    for box in [batt_a, fuse_a, cont_a, bus_top, buck_f, motor_f]:
+        box.draw(screen, font_component)
 
-    # Draw callout balloons with spec details
-    for callout in callouts:
-        callout.draw(screen, font_callout)
+    # Lines top path
+    draw_line(screen, batt_a.right(), batt_a.center()[1], fuse_a.left(), fuse_a.center()[1], "", font_label)
+    draw_line(screen, fuse_a.right(), fuse_a.center()[1], cont_a.left(), cont_a.center()[1], "", font_label)
+    draw_line(screen, cont_a.right(), cont_a.center()[1], bus_top.left(), bus_top.center()[1], "", font_label)
+    draw_line(screen, bus_top.right(), bus_top.center()[1], buck_f.left(), buck_f.center()[1], "", font_label)
+    draw_line(screen, buck_f.right(), buck_f.center()[1], motor_f.left(), motor_f.center()[1], "", font_label)
 
-    # Separator line
-    separator_y = CALLOUT_TOP - 25
-    pygame.draw.line(screen, (150, 150, 150), (40, separator_y), (WIDTH - 40, separator_y), width=1)
+    # ===== BOTTOM FLOW (Battery B Path) =====
+    y_bot = 280
 
-    # Footer
-    footer = font_small.render("All components: Commercial NRTL-licensed | Conductors: AWG rated for temp and current | Specifications subject to load verification", True, (80, 80, 80))
-    footer_rect = footer.get_rect(center=(WIDTH // 2, HEIGHT - 15))
-    screen.blit(footer, footer_rect)
+    batt_b = Box("B-B", 50, y_bot)
+    fuse_b = Box("F-B", 150, y_bot)
+    cont_b = Box("C-B", 250, y_bot)
+    bus_bot = Box("BUS", 380, y_bot - 15)
+    buck_r = Box("BK-R", 520, y_bot)
+    motor_r = Box("M-R", 650, y_bot)
 
-    # Save PNG
+    for box in [batt_b, fuse_b, cont_b, bus_bot, buck_r, motor_r]:
+        box.draw(screen, font_component)
+
+    # Lines bottom path
+    draw_line(screen, batt_b.right(), batt_b.center()[1], fuse_b.left(), fuse_b.center()[1], "", font_label)
+    draw_line(screen, fuse_b.right(), fuse_b.center()[1], cont_b.left(), cont_b.center()[1], "", font_label)
+    draw_line(screen, cont_b.right(), cont_b.center()[1], bus_bot.left(), bus_bot.center()[1], "", font_label)
+    draw_line(screen, bus_bot.right(), bus_bot.center()[1], buck_r.left(), buck_r.center()[1], "", font_label)
+    draw_line(screen, buck_r.right(), buck_r.center()[1], motor_r.left(), motor_r.center()[1], "", font_label)
+
+    # ===== SPECIFICATION BOXES =====
+    specs_y = 480
+
+    specs = [
+        SpecBox("Battery A", ["48V 20Ah", "LiFePO4", "SoC Monitor"], 30, specs_y),
+        SpecBox("Fuse A", ["80A ANL", "PVC conduit", "2 AWG"], 210, specs_y),
+        SpecBox("Contactor A", ["24V 40A", "SoC control", "Switching"], 390, specs_y),
+        SpecBox("Power Bus", ["48V common", "Copper busbar", "From both"], 560, specs_y),
+        SpecBox("Buck F", ["48V 30A", "0-48V PWM", "CC mode"], 750, specs_y),
+        SpecBox("Motor F", ["750W hub", "INA226 sense", "Current FB"], 920, specs_y),
+
+        SpecBox("Battery B", ["48V 20Ah", "LiFePO4", "SoC Monitor"], 30, specs_y + 140),
+        SpecBox("Fuse B", ["80A ANL", "PVC conduit", "2 AWG"], 210, specs_y + 140),
+        SpecBox("Contactor B", ["24V 40A", "SoC control", "Switching"], 390, specs_y + 140),
+        SpecBox("Bus Return", ["Common GND", "All grounds", "Shared plane"], 560, specs_y + 140),
+        SpecBox("Buck R", ["48V 30A", "0-48V PWM", "CC mode"], 750, specs_y + 140),
+        SpecBox("Motor R", ["750W hub", "INA226 sense", "Current FB"], 920, specs_y + 140),
+    ]
+
+    for spec in specs:
+        spec.draw(screen, font_spec_title, font_spec)
+
+    # Wire spec box (right side)
+    wire_spec = SpecBox("Wire Ratings", [
+        "B-to-F: 2 AWG 80A",
+        "F-to-C: 2 AWG 80A",
+        "C-to-Bus: 4 AWG 80A",
+        "Bus-to-Buck: 4 AWG 50A",
+        "Buck-to-Motor: 6 AWG 50A"
+    ], 1130, 480)
+    wire_spec.draw(screen, font_spec_title, font_spec)
+
     pygame.image.save(screen, "wiring_diagram_detailed.png")
-    print("[OK] Saved: wiring_diagram_detailed.png (1600x1200)")
+    print("[OK] Saved: wiring_diagram_detailed.png")
 
     pygame.quit()
 
-
 if __name__ == "__main__":
-    create_wiring_diagram()
+    main()
