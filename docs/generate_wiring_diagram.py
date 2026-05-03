@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 """
-eBike wiring diagram: Left-to-right flow showing components and conductors.
-Scan horizontally to verify ampacity, wire sizing, and component ratings.
+eBike wiring diagram: Top row components, bottom row conductor specs, vertical leaders.
 """
 
 import pygame
 from typing import List, Tuple
 
-WIDTH, HEIGHT = 1800, 1000
+WIDTH, HEIGHT = 1600, 900
 BG_COLOR = (255, 255, 255)
 TEXT_COLOR = (0, 0, 0)
-LINE_COLOR = (30, 30, 30)
-COMP_BG = (240, 240, 240)
-COMP_BORDER = (100, 100, 100)
-PDB_BG = (255, 250, 200)
-PDB_BORDER = (200, 80, 80)
-CONDUCTOR_BG = (230, 245, 255)
-CONDUCTOR_BORDER = (100, 150, 200)
+LINE_COLOR = (0, 0, 0)
+COMP_BG = (220, 220, 255)
+COMP_BORDER = (50, 50, 150)
+PDB_BG = (255, 250, 180)
+PDB_BORDER = (200, 100, 50)
+WIRE_BG = (240, 240, 240)
+WIRE_BORDER = (100, 100, 100)
 
 class ComponentBox:
     """Component specification box."""
-    def __init__(self, label: str, specs: List[str], x: int, y: int, w: int = 120, h: int = 100, is_pdb: bool = False):
+    def __init__(self, label: str, specs: List[str], x: int, y: int, w: int = 100, h: int = 80, is_pdb: bool = False):
         self.label = label
         self.specs = specs
         self.x = x
@@ -39,15 +38,18 @@ class ComponentBox:
 
         # Label
         label_text = label_font.render(self.label, True, TEXT_COLOR)
-        label_rect = label_text.get_rect(center=(self.x + self.w//2, self.y + 8))
+        label_rect = label_text.get_rect(center=(self.x + self.w//2, self.y + 6))
         surface.blit(label_text, label_rect)
 
         # Specs
-        y_offset = self.y + 24
+        y_offset = self.y + 22
         for spec in self.specs:
             spec_text = spec_font.render(spec, True, TEXT_COLOR)
-            surface.blit(spec_text, (self.x + 4, y_offset))
-            y_offset += 12
+            surface.blit(spec_text, (self.x + 3, y_offset))
+            y_offset += 11
+
+    def center_x(self) -> int:
+        return self.x + self.w // 2
 
     def right(self) -> int:
         return self.x + self.w
@@ -55,9 +57,12 @@ class ComponentBox:
     def center_y(self) -> int:
         return self.y + self.h // 2
 
-class ConductorBox:
-    """Conductor callout with rounded corners."""
-    def __init__(self, specs: List[str], x: int, y: int, w: int = 110, h: int = 100):
+    def bottom(self) -> int:
+        return self.y + self.h
+
+class WireSpecBox:
+    """Wire/conductor specification box (bottom row)."""
+    def __init__(self, specs: List[str], x: int, y: int, w: int = 100, h: int = 90):
         self.specs = specs
         self.x = x
         self.y = y
@@ -66,114 +71,138 @@ class ConductorBox:
 
     def draw(self, surface, spec_font):
         rect = pygame.Rect(self.x, self.y, self.w, self.h)
-        pygame.draw.ellipse(surface, CONDUCTOR_BG, rect)
-        pygame.draw.ellipse(surface, CONDUCTOR_BORDER, rect, width=2)
+        pygame.draw.rect(surface, WIRE_BG, rect)
+        pygame.draw.rect(surface, WIRE_BORDER, rect, width=1)
 
-        y_offset = self.y + 6
+        y_offset = self.y + 4
         for spec in self.specs:
             spec_text = spec_font.render(spec, True, TEXT_COLOR)
-            surface.blit(spec_text, (self.x + 6, y_offset))
-            y_offset += 13
+            surface.blit(spec_text, (self.x + 3, y_offset))
+            y_offset += 11
 
-    def center(self) -> Tuple[int, int]:
-        return (self.x + self.w//2, self.y + self.h//2)
-
-def draw_connection_line(surface, x1: int, y1: int, x2: int, y2: int):
-    """Draw line between component and conductor boxes."""
-    pygame.draw.line(surface, LINE_COLOR, (x1, y1), (x2, y2), width=2)
+    def center_x(self) -> int:
+        return self.x + self.w // 2
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("eBike Power Distribution - Left-to-Right Flow")
+    pygame.display.set_caption("eBike Power Distribution - Component & Conductor Flow")
 
-    font_title = pygame.font.SysFont("arial", 20, bold=True)
-    font_label = pygame.font.SysFont("arial", 11, bold=True)
-    font_spec = pygame.font.SysFont("arial", 8)
+    font_title = pygame.font.SysFont("arial", 18, bold=True)
+    font_label = pygame.font.SysFont("arial", 10, bold=True)
+    font_spec = pygame.font.SysFont("arial", 7)
 
     screen.fill(BG_COLOR)
 
     # Title
-    title = font_title.render("eBike Dual-Motor Dual-Battery Power Distribution - Verification Flow", True, TEXT_COLOR)
+    title = font_title.render("eBike Power Distribution - Left to Right Verification", True, TEXT_COLOR)
     screen.blit(title, (WIDTH//2 - title.get_width()//2, 10))
 
-    subtitle = font_spec.render("Scan left-to-right to verify ampacity, wire sizing, and component ratings across the circuit", True, (80, 80, 80))
-    screen.blit(subtitle, (WIDTH//2 - subtitle.get_width()//2, 32))
+    # ===== TOP ROW: COMPONENTS (Battery A Path) =====
+    top_y = 40
 
-    # ===== BATTERY A PATH (top) =====
-    y_path_a = 60
-    x_start = 30
+    comps_a = [
+        ComponentBox("Battery A", ["48V 20Ah", "LiFePO4", "SoC"], 50, top_y, 90, 80),
+        ComponentBox("Fuse A", ["80A ANL", "2 AWG"], 180, top_y, 90, 80),
+        ComponentBox("PDB", ["Contactors", "Bus", "Buck Conv"], 310, top_y, 130, 80, is_pdb=True),
+        ComponentBox("Motor F", ["750W hub", "INA226"], 490, top_y, 90, 80),
+        ComponentBox("Controller", ["Pico W", "WiFi"], 620, top_y, 90, 80),
+    ]
 
-    # Components and conductors
-    comp_a = ComponentBox("Battery A", ["48V 20Ah", "LiFePO4", "SoC"], x_start, y_path_a, 110, 95)
-    cond_a1 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 130, y_path_a, 105, 95)
-
-    fuse_a = ComponentBox("Fuse A", ["80A ANL", "2 AWG", "Inline"], x_start + 260, y_path_a, 110, 95)
-    cond_a2 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 390, y_path_a, 105, 95)
-
-    pdb = ComponentBox("Power Distribution Board", [
-        "Contactors A/B",
-        "Bus 48V",
-        "Buck Conv F/R"
-    ], x_start + 520, y_path_a, 160, 95, is_pdb=True)
-    cond_a3 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 710, y_path_a, 105, 95)
-
-    motor_f = ComponentBox("Motor F", ["750W hub", "INA226", "Current sense"], x_start + 840, y_path_a, 110, 95)
-    cond_a4 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "2x #24 shield", "data"], x_start + 970, y_path_a, 105, 95)
-
-    ctrl = ComponentBox("Controller", ["Pico W", "WiFi", "Logic"], x_start + 1100, y_path_a, 110, 95)
-
-    # Draw path A
-    for comp in [comp_a, fuse_a, pdb, motor_f, ctrl]:
+    for comp in comps_a:
         comp.draw(screen, font_label, font_spec)
-    for cond in [cond_a1, cond_a2, cond_a3, cond_a4]:
-        cond.draw(screen, font_spec)
 
-    # Connection lines
-    draw_connection_line(screen, comp_a.right(), comp_a.center_y(), cond_a1.x, cond_a1.y + cond_a1.h//2)
-    draw_connection_line(screen, cond_a1.x + cond_a1.w, cond_a1.y + cond_a1.h//2, fuse_a.x, fuse_a.center_y())
-    draw_connection_line(screen, fuse_a.right(), fuse_a.center_y(), cond_a2.x, cond_a2.y + cond_a2.h//2)
-    draw_connection_line(screen, cond_a2.x + cond_a2.w, cond_a2.y + cond_a2.h//2, pdb.x, pdb.center_y())
-    draw_connection_line(screen, pdb.right(), pdb.center_y(), cond_a3.x, cond_a3.y + cond_a3.h//2)
-    draw_connection_line(screen, cond_a3.x + cond_a3.w, cond_a3.y + cond_a3.h//2, motor_f.x, motor_f.center_y())
-    draw_connection_line(screen, motor_f.right(), motor_f.center_y(), cond_a4.x, cond_a4.y + cond_a4.h//2)
-    draw_connection_line(screen, cond_a4.x + cond_a4.w, cond_a4.y + cond_a4.h//2, ctrl.x, ctrl.center_y())
+    # Draw horizontal conductor lines between components
+    for i in range(len(comps_a) - 1):
+        x1 = comps_a[i].right()
+        x2 = comps_a[i+1].x
+        y = comps_a[i].center_y()
 
-    # ===== BATTERY B PATH (bottom) =====
-    y_path_b = 500
+        # Horizontal line
+        pygame.draw.line(screen, LINE_COLOR, (x1, y), (x2, y), width=2)
 
-    comp_b = ComponentBox("Battery B", ["48V 20Ah", "LiFePO4", "SoC"], x_start, y_path_b, 110, 95)
-    cond_b1 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 130, y_path_b, 105, 95)
+        # Circle on the conductor line (midpoint)
+        circle_x = (x1 + x2) // 2
+        pygame.draw.circle(screen, LINE_COLOR, (circle_x, y), 6, width=2)
 
-    fuse_b = ComponentBox("Fuse B", ["80A ANL", "2 AWG", "Inline"], x_start + 260, y_path_b, 110, 95)
-    cond_b2 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 390, y_path_b, 105, 95)
+    # ===== VERTICAL LEADERS AND BOTTOM ROW: WIRE SPECS =====
+    bottom_y = 280
 
-    pdb_b_label = ComponentBox("(PDB shared)", ["Common", "Bus & Bucks", "from path A"], x_start + 520, y_path_b, 160, 95, is_pdb=True)
-    cond_b3 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "1x #14 Cu", "GND"], x_start + 710, y_path_b, 105, 95)
+    wire_specs_a = [
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #12 THWN-2", "stranded Cu", "2x #24 shld", "1/2\" conduit"],
+    ]
 
-    motor_r = ComponentBox("Motor R", ["750W hub", "INA226", "Current sense"], x_start + 840, y_path_b, 110, 95)
-    cond_b4 = ConductorBox(["2x #12", "THWN-2", "stranded Cu", "2x #24 shield", "data"], x_start + 970, y_path_b, 105, 95)
+    # Position wire spec boxes between components
+    wire_box_x_positions = []
+    for i in range(len(comps_a) - 1):
+        x1 = comps_a[i].right()
+        x2 = comps_a[i+1].x
+        mid_x = (x1 + x2) // 2
+        wire_box_x_positions.append(mid_x - 50)  # Center the box on the midpoint
 
-    lights = ComponentBox("Lights/UI", ["Turn sig", "Brake LED", "Status"], x_start + 1100, y_path_b, 110, 95)
+    for i, specs in enumerate(wire_specs_a):
+        wire_box = WireSpecBox(specs, wire_box_x_positions[i], bottom_y, 100, 90)
+        wire_box.draw(screen, font_spec)
 
-    # Draw path B
-    for comp in [comp_b, fuse_b, pdb_b_label, motor_r, lights]:
+        # Draw vertical leader line from conductor to wire spec box
+        circle_x = (comps_a[i].right() + comps_a[i+1].x) // 2
+        circle_y = comps_a[i].center_y()
+        leader_top_y = comps_a[i].bottom() + 30
+        leader_bottom_y = bottom_y
+
+        pygame.draw.line(screen, LINE_COLOR, (circle_x, leader_top_y), (circle_x, leader_bottom_y), width=1)
+
+    # ===== BOTTOM SECTION: BATTERY B PATH =====
+    path_b_y = 500
+
+    comps_b = [
+        ComponentBox("Battery B", ["48V 20Ah", "LiFePO4", "SoC"], 50, path_b_y, 90, 80),
+        ComponentBox("Fuse B", ["80A ANL", "2 AWG"], 180, path_b_y, 90, 80),
+        ComponentBox("PDB", ["(shared)", "from path A"], 310, path_b_y, 130, 80, is_pdb=True),
+        ComponentBox("Motor R", ["750W hub", "INA226"], 490, path_b_y, 90, 80),
+        ComponentBox("Lights/UI", ["Turn sig", "Status LED"], 620, path_b_y, 90, 80),
+    ]
+
+    for comp in comps_b:
         comp.draw(screen, font_label, font_spec)
-    for cond in [cond_b1, cond_b2, cond_b3, cond_b4]:
-        cond.draw(screen, font_spec)
 
-    # Connection lines
-    draw_connection_line(screen, comp_b.right(), comp_b.center_y(), cond_b1.x, cond_b1.y + cond_b1.h//2)
-    draw_connection_line(screen, cond_b1.x + cond_b1.w, cond_b1.y + cond_b1.h//2, fuse_b.x, fuse_b.center_y())
-    draw_connection_line(screen, fuse_b.right(), fuse_b.center_y(), cond_b2.x, cond_b2.y + cond_b2.h//2)
-    draw_connection_line(screen, cond_b2.x + cond_b2.w, cond_b2.y + cond_b2.h//2, pdb_b_label.x, pdb_b_label.center_y())
-    draw_connection_line(screen, pdb_b_label.right(), pdb_b_label.center_y(), cond_b3.x, cond_b3.y + cond_b3.h//2)
-    draw_connection_line(screen, cond_b3.x + cond_b3.w, cond_b3.y + cond_b3.h//2, motor_r.x, motor_r.center_y())
-    draw_connection_line(screen, motor_r.right(), motor_r.center_y(), cond_b4.x, cond_b4.y + cond_b4.h//2)
-    draw_connection_line(screen, cond_b4.x + cond_b4.w, cond_b4.y + cond_b4.h//2, lights.x, lights.center_y())
+    # Draw horizontal conductor lines for path B
+    for i in range(len(comps_b) - 1):
+        x1 = comps_b[i].right()
+        x2 = comps_b[i+1].x
+        y = comps_b[i].center_y()
+
+        pygame.draw.line(screen, LINE_COLOR, (x1, y), (x2, y), width=2)
+        circle_x = (x1 + x2) // 2
+        pygame.draw.circle(screen, LINE_COLOR, (circle_x, y), 6, width=2)
+
+    # Wire specs for path B
+    wire_specs_b = [
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #12 THWN-2", "stranded Cu", "1x #14 Cu GND", "1/2\" conduit"],
+        ["2x #18 twisted", "pair shielded", "in 1/4\" conduit", ""],
+    ]
+
+    bottom_b_y = path_b_y + 280
+
+    for i, specs in enumerate(wire_specs_b):
+        wire_box = WireSpecBox(specs, wire_box_x_positions[i], bottom_b_y, 100, 90)
+        wire_box.draw(screen, font_spec)
+
+        # Vertical leader lines
+        circle_x = (comps_b[i].right() + comps_b[i+1].x) // 2
+        circle_y = comps_b[i].center_y()
+        leader_top_y = comps_b[i].bottom() + 30
+        leader_bottom_y = bottom_b_y
+
+        pygame.draw.line(screen, LINE_COLOR, (circle_x, leader_top_y), (circle_x, leader_bottom_y), width=1)
 
     pygame.image.save(screen, "wiring_diagram_detailed.png")
-    print("[OK] Saved: wiring_diagram_detailed.png (1800x1000)")
+    print("[OK] Saved: wiring_diagram_detailed.png (1600x900)")
 
     pygame.quit()
 
